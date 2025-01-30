@@ -1,23 +1,39 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { uploadFile } from '../api/fileService';
+import DataPreview from './DataPreview';
 
 const FileImport = () => {
   const [error, setError] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null);
+  const [previewData, setPreviewData] = useState(null);
+  const [sheetNames, setSheetNames] = useState([]);
 
   const handleFileUpload = async (file) => {
     try {
       setIsUploading(true);
+      setError(null);
+      
       const formData = new FormData();
       formData.append('file', file);
+      
+      console.log('Uploading file:', file.name);
       const response = await uploadFile(formData);
-      console.log('Upload successful:', response);
-      // TODO: Handle successful upload (show preview, etc.)
+      console.log('Upload response:', response);
+      
+      if (response.data && response.sheets) {
+        setPreviewData(response.data);
+        setSheetNames(response.sheets);
+      } else {
+        throw new Error('Invalid response format from server');
+      }
     } catch (err) {
-      setError(err.message);
+      console.error('File upload error:', err);
+      setError(err.message || 'Failed to upload file');
+      setPreviewData(null);
+      setSheetNames([]);
     } finally {
       setIsUploading(false);
     }
@@ -55,6 +71,13 @@ const FileImport = () => {
 
   const handleBrowseClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleDeleteRow = (sheetName, rowIndex) => {
+    setPreviewData(prevData => ({
+      ...prevData,
+      [sheetName]: prevData[sheetName].filter((_, index) => index !== rowIndex)
+    }));
   };
 
   return (
@@ -168,6 +191,15 @@ const FileImport = () => {
             </p>
           </div>
         </div>
+
+        {/* Data Preview */}
+        {previewData && sheetNames.length > 0 && (
+          <DataPreview
+            data={previewData}
+            sheetNames={sheetNames}
+            onDeleteRow={handleDeleteRow}
+          />
+        )}
       </div>
     </div>
   );

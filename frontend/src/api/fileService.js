@@ -1,8 +1,9 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export const uploadFile = async (formData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/upload`, {
+    console.log('Uploading to:', `${API_BASE_URL}/api/upload`);
+    const response = await fetch(`${API_BASE_URL}/api/upload`, {
       method: 'POST',
       body: formData,
     });
@@ -12,8 +13,11 @@ export const uploadFile = async (formData) => {
       throw new Error(error.message || 'Failed to upload file');
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('Upload response:', result);
+    return result;
   } catch (error) {
+    console.error('Upload service error:', error);
     throw error;
   }
 }; 
