@@ -1,16 +1,18 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import React from 'react'
+import FileImport from './components/FileImport'
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      <h1 className="text-3xl font-bold text-center text-blue-600">
-        Excel Data Importer
-      </h1>
+    <div className="min-h-screen w-screen bg-gray-50 overflow-x-hidden">
+      <div className="w-full min-h-screen py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-12 text-center">
+            Excel Data Importer
+          </h1>
+          <FileImport />
+        </div>
+      </div>
     </div>
   )
 }
