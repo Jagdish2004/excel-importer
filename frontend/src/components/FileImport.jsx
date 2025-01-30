@@ -23,12 +23,20 @@ const FileImport = () => {
       const response = await uploadFile(formData);
       console.log('Upload response:', response);
       
-      if (response.data && response.sheets) {
-        setPreviewData(response.data);
-        setSheetNames(response.sheets);
-      } else {
-        throw new Error('Invalid response format from server');
+      // Check for required properties with more detailed error messages
+      if (!response.data) {
+        throw new Error('Response is missing data property');
       }
+      if (!Array.isArray(response.data)) {
+        throw new Error('Response data is not an array');
+      }
+      if (!response.sheets || !Array.isArray(response.sheets)) {
+        throw new Error('Response is missing sheets array');
+      }
+      
+      setPreviewData(response.data);
+      setSheetNames(response.sheets);
+      
     } catch (err) {
       console.error('File upload error:', err);
       setError(err.message || 'Failed to upload file');
