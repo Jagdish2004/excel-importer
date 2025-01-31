@@ -47,4 +47,50 @@ export const deleteRecord = async (id) => {
     console.error('Delete error:', error);
     throw error;
   }
+};
+
+export const previewFile = async (formData) => {
+  try {
+    console.log('Sending preview request to:', `${API_BASE_URL}/api/preview`);
+    const response = await fetch(`${API_BASE_URL}/api/preview`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to upload file');
+    }
+
+    const result = await response.json();
+    console.log('Preview response:', result);
+    return result;
+  } catch (error) {
+    console.error('Preview error:', error);
+    throw error;
+  }
+};
+
+export const importValidatedData = async (sheetName) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/import`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ sheetName }),
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to import data');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Import error:', error);
+    throw error;
+  }
 }; 

@@ -31,7 +31,8 @@ const upload = multer({
 });
 
 // Routes
-router.post('/import', upload.single('file'), importController.importData);
+router.post('/preview', upload.single('file'), importController.previewData);
+router.post('/import', importController.importValidated);
 router.get('/data', importController.getData);
 router.delete('/data/:id', importController.deleteRecord);
 

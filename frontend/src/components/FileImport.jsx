@@ -1,47 +1,69 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { uploadFile } from '../api/fileService';
+import { previewFile, importValidatedData } from '../api/fileService';
 import DataPreview from './DataPreview';
 
 const FileImport = () => {
   const [error, setError] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
   const fileInputRef = useRef(null);
   const [previewData, setPreviewData] = useState(null);
-  const [sheetNames, setSheetNames] = useState([]);
+  const [validationResults, setValidationResults] = useState(null);
+  const [currentSheet, setCurrentSheet] = useState(null);
 
-  const handleFileUpload = async (file) => {
+  const handlePreview = async () => {
+    if (!selectedFile) return;
+
     try {
-      setIsUploading(true);
+      setIsPreviewing(true);
       setError(null);
       
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', selectedFile);
       
-      console.log('Uploading file:', file.name);
-      const response = await uploadFile(formData);
-      console.log('Upload response:', response);
+      console.log('Previewing file:', selectedFile.name);
+      const response = await previewFile(formData);
+      console.log('Preview response:', response);
       
-      // Check for required properties with more detailed error messages
-      if (!response.data) {
-        throw new Error('Response is missing data property');
+      if (response.validationResults && response.validationResults.length > 0) {
+        setValidationResults(response.validationResults);
+        setCurrentSheet(response.validationResults[0].sheetName);
       }
-      if (!Array.isArray(response.data)) {
-        throw new Error('Response data is not an array');
-      }
-      if (!response.sheets || !Array.isArray(response.sheets)) {
-        throw new Error('Response is missing sheets array');
-      }
-      
-      setPreviewData(response.data);
-      setSheetNames(response.sheets);
       
     } catch (err) {
-      console.error('File upload error:', err);
-      setError(err.message || 'Failed to upload file');
-      setPreviewData(null);
-      setSheetNames([]);
+      console.error('Preview error:', err);
+      setError(err.message || 'Failed to preview file');
+      setValidationResults(null);
+      setCurrentSheet(null);
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!currentSheet) return;
+    
+    try {
+      setIsUploading(true);
+      const response = await importValidatedData(currentSheet);
+      console.log('Import response:', response);
+      
+      // Show success message
+      alert(`Successfully imported ${response.importedCount} rows. Skipped ${response.skippedCount} invalid rows.`);
+      
+      // Clear the preview data for the imported sheet
+      setValidationResults(prev => prev.filter(sheet => sheet.sheetName !== currentSheet));
+      if (validationResults.length > 1) {
+        setCurrentSheet(validationResults[0].sheetName);
+      } else {
+        setCurrentSheet(null);
+      }
+      
+    } catch (err) {
+      console.error('Import error:', err);
+      setError(err.message || 'Failed to import data');
     } finally {
       setIsUploading(false);
     }
@@ -49,7 +71,8 @@ const FileImport = () => {
 
   const onDrop = useCallback((acceptedFiles, rejectedFiles) => {
     setError(null);
-    setSelectedFile(null);
+    setValidationResults(null);
+    setCurrentSheet(null);
 
     if (rejectedFiles.length > 0) {
       const rejection = rejectedFiles[0];
@@ -64,7 +87,6 @@ const FileImport = () => {
     const file = acceptedFiles[0];
     if (file) {
       setSelectedFile(file);
-      handleFileUpload(file);
     }
   }, []);
 
@@ -155,6 +177,25 @@ const FileImport = () => {
                     <span className="font-medium">Type:</span> Excel Spreadsheet
                   </p>
                 </div>
+                <div className="mt-4">
+                  <button
+                    onClick={handlePreview}
+                    disabled={isPreviewing}
+                    className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                  >
+                    {isPreviewing ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Previewing...
+                      </>
+                    ) : (
+                      'Preview Data'
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -200,13 +241,75 @@ const FileImport = () => {
           </div>
         </div>
 
-        {/* Data Preview */}
-        {previewData && sheetNames.length > 0 && (
-          <DataPreview
-            data={previewData}
-            sheetNames={sheetNames}
-            onDeleteRow={handleDeleteRow}
-          />
+        {/* Preview and Validation Results */}
+        {validationResults && currentSheet && validationResults.map(sheet => 
+          sheet.sheetName === currentSheet && (
+            <div key={sheet.sheetName} className="mt-8 bg-white rounded-lg shadow-lg p-6">
+              {/* Sheet Selection */}
+              <div className="mb-6">
+                <label htmlFor="sheet-select" className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Sheet
+                </label>
+                <select
+                  id="sheet-select"
+                  value={currentSheet}
+                  onChange={(e) => setCurrentSheet(e.target.value)}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                >
+                  {validationResults.map((s) => (
+                    <option key={s.sheetName} value={s.sheetName}>
+                      {s.sheetName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sheet Errors */}
+              {sheet.errors.length > 0 && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+                  <h3 className="text-red-800 font-medium mb-2">Sheet Errors:</h3>
+                  <ul className="list-disc list-inside text-red-700">
+                    {sheet.errors.map((error, index) => (
+                      <li key={index}>{error.error}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Valid Rows */}
+              {sheet.validRows && sheet.validRows.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    Valid Rows ({sheet.validRows.length})
+                  </h3>
+                  <DataPreview data={sheet.validRows} />
+                </div>
+              )}
+
+              {/* Invalid Rows */}
+              {sheet.invalidRows && sheet.invalidRows.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-medium text-red-600 mb-4">
+                    Invalid Rows ({sheet.invalidRows.length})
+                  </h3>
+                  <DataPreview data={sheet.invalidRows} />
+                </div>
+              )}
+
+              {/* Import Button */}
+              {sheet.validRows && sheet.validRows.length > 0 && (
+                <div className="mt-6 flex justify-end">
+                  <button
+                    onClick={handleImport}
+                    disabled={isUploading}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  >
+                    {isUploading ? 'Importing...' : 'Import Valid Rows'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )
         )}
       </div>
     </div>
