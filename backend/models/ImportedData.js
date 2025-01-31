@@ -5,24 +5,9 @@ const importedDataSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Name is required']
   },
-  gender: {
-    type: String,
-    required: [true, 'Gender is required']
-  },
-  age: {
-    type: Number,
-    required: [true, 'Age is required'],
-    min: [0, 'Age must be positive']
-  },
   date: {
     type: Date,
-    required: [true, 'Date is required'],
-    validate: {
-      validator: function(v) {
-        return !isNaN(v.getTime());
-      },
-      message: props => `${props.value} is not a valid date!`
-    }
+    required: [true, 'Date is required']
   },
   amount: {
     type: Number,
@@ -34,16 +19,22 @@ const importedDataSchema = new mongoose.Schema({
     default: false
   }
 }, {
-  timestamps: true,
-  strict: true
+  timestamps: true
 });
 
-// Add pre-save middleware for additional validation
+// Add pre-save middleware for date formatting
 importedDataSchema.pre('save', function(next) {
-  console.log('Saving document:', this.toObject());
+  if (this.date) {
+    // Ensure date is stored as a proper Date object
+    this.date = new Date(this.date);
+  }
   next();
 });
 
+// Clear existing model if it exists
+mongoose.models = {};
+
+// Create new model
 const ImportedData = mongoose.model('ImportedData', importedDataSchema);
 
 module.exports = ImportedData; 

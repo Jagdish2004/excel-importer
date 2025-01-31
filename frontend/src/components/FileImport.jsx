@@ -30,6 +30,8 @@ const FileImport = () => {
       if (response.validationResults && response.validationResults.length > 0) {
         setValidationResults(response.validationResults);
         setCurrentSheet(response.validationResults[0].sheetName);
+      } else {
+        setError('No valid data found in the file or all rows have errors');
       }
       
     } catch (err) {

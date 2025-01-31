@@ -12,11 +12,8 @@ export const uploadFile = async (formData) => {
       throw new Error(error.message || 'Failed to upload file');
     }
 
-    const result = await response.json();
-    console.log('Import response:', result);
-    return result;
+    return await response.json();
   } catch (error) {
-    console.error('Import service error:', error);
     throw error;
   }
 };
@@ -29,7 +26,6 @@ export const getImportedData = async (page = 1, limit = 10) => {
     }
     return await response.json();
   } catch (error) {
-    console.error('Fetch data error:', error);
     throw error;
   }
 };
@@ -44,30 +40,41 @@ export const deleteRecord = async (id) => {
     }
     return await response.json();
   } catch (error) {
-    console.error('Delete error:', error);
     throw error;
   }
 };
 
-export const previewFile = async (formData) => {
+export const previewFile = async (formData, onProgress) => {
   try {
-    console.log('Sending preview request to:', `${API_BASE_URL}/api/preview`);
-    const response = await fetch(`${API_BASE_URL}/api/preview`, {
-      method: 'POST',
-      body: formData,
-      credentials: 'include'
+    const xhr = new XMLHttpRequest();
+    
+    const promise = new Promise((resolve, reject) => {
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const progress = (event.loaded / event.total) * 100;
+          onProgress?.(progress);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+          resolve(JSON.parse(xhr.response));
+        } else {
+          reject(new Error(xhr.statusText));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed'));
+      });
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to upload file');
-    }
+    xhr.open('POST', `${API_BASE_URL}/api/preview`);
+    xhr.withCredentials = true;
+    xhr.send(formData);
 
-    const result = await response.json();
-    console.log('Preview response:', result);
-    return result;
+    return promise;
   } catch (error) {
-    console.error('Preview error:', error);
     throw error;
   }
 };
@@ -90,7 +97,6 @@ export const importValidatedData = async (sheetName) => {
 
     return await response.json();
   } catch (error) {
-    console.error('Import error:', error);
     throw error;
   }
 }; 
