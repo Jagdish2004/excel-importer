@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { previewFile, importValidatedData } from '../api/fileService';
+import { previewFile, importValidatedData, deleteRow } from '../api/fileService';
 import DataPreview from './DataPreview';
 
 const FileImport = () => {
@@ -105,11 +105,31 @@ const FileImport = () => {
     fileInputRef.current?.click();
   };
 
-  const handleDeleteRow = (sheetName, rowIndex) => {
-    setPreviewData(prevData => ({
-      ...prevData,
-      [sheetName]: prevData[sheetName].filter((_, index) => index !== rowIndex)
-    }));
+  const handleDeleteRow = async (row) => {
+    try {
+      console.log('Deleting row:', row);
+      const response = await deleteRow(currentSheet, row.rowNumber);
+      
+      if (response.validationResults) {
+        setValidationResults(response.validationResults);
+      } else {
+        // Fallback to optimistic update
+        setValidationResults(prev => 
+          prev.map(sheet => {
+            if (sheet.sheetName === currentSheet) {
+              return {
+                ...sheet,
+                validRows: sheet.validRows.filter(r => r.rowNumber !== row.rowNumber),
+                invalidRows: sheet.invalidRows.filter(r => r.rowNumber !== row.rowNumber)
+              };
+            }
+            return sheet;
+          })
+        );
+      }
+    } catch (error) {
+      setError('Failed to delete row: ' + error.message);
+    }
   };
 
   return (
@@ -284,7 +304,10 @@ const FileImport = () => {
                   <h3 className="text-lg font-medium text-gray-900 mb-4">
                     Valid Rows ({sheet.validRows.length})
                   </h3>
-                  <DataPreview data={sheet.validRows} />
+                  <DataPreview 
+                    data={sheet.validRows} 
+                    onDeleteRow={handleDeleteRow}
+                  />
                 </div>
               )}
 
@@ -294,7 +317,10 @@ const FileImport = () => {
                   <h3 className="text-lg font-medium text-red-600 mb-4">
                     Invalid Rows ({sheet.invalidRows.length})
                   </h3>
-                  <DataPreview data={sheet.invalidRows} />
+                  <DataPreview 
+                    data={sheet.invalidRows} 
+                    onDeleteRow={handleDeleteRow}
+                  />
                 </div>
               )}
 

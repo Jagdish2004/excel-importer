@@ -21,16 +21,53 @@ const importController = {
       // Process each sheet
       for (const sheetName of sheetNames) {
         const worksheet = workbook.Sheets[sheetName];
-        const data = xlsx.utils.sheet_to_json(worksheet);
-
+        
+        // First get headers using sheet_to_json with header:1 option
+        const headers = xlsx.utils.sheet_to_json(worksheet, { header: 1 })[0];
+        
         const sheetErrors = [];
         const validRows = [];
         const invalidRows = [];
 
+        if (!headers || headers.length === 0) {
+          sheetErrors.push({
+            row: 0,
+            error: 'Sheet is empty or missing headers'
+          });
+          validationResults.push({
+            sheetName,
+            validRows: [],
+            invalidRows: [],
+            errors: sheetErrors
+          });
+          continue;
+        }
+
+        // Check for required columns
+        const requiredColumns = ['Name', 'Date', 'Amount'];
+        const missingColumns = requiredColumns.filter(col => !headers.includes(col));
+
+        if (missingColumns.length > 0) {
+          sheetErrors.push({
+            row: 0,
+            error: `Invalid sheet format: Missing required columns - ${missingColumns.join(', ')}. Column names must be exactly "Name", "Date", and "Amount"`
+          });
+          validationResults.push({
+            sheetName,
+            validRows: [],
+            invalidRows: [],
+            errors: sheetErrors
+          });
+          continue;
+        }
+
+        // Now read the data with the validated headers
+        const data = xlsx.utils.sheet_to_json(worksheet);
+
         if (data.length === 0) {
           sheetErrors.push({
             row: 0,
-            error: 'Sheet is empty'
+            error: 'Sheet has no data rows'
           });
           continue;
         }
@@ -43,7 +80,7 @@ const importController = {
           const formattedRow = {
             name: row['Name']?.toString().trim() || '',
             amount: parseFloat(row['Amount']),
-            verified: row['Verified']?.toString().toLowerCase() === 'yes',
+            date: row['Date'],
             rowNumber
           };
 
@@ -85,11 +122,11 @@ const importController = {
               day: '2-digit',
               month: '2-digit',
               year: 'numeric'
-            });
+            }).replace(/\//g, '-');
             formattedRow.dateObj = jsDate;
 
           } catch (error) {
-            rowErrors.push('Invalid date format');
+            rowErrors.push('Invalid date format - use DD-MM-YYYY');
           }
 
           // Add row to appropriate array
@@ -122,16 +159,14 @@ const importController = {
       // Clean up uploaded file
       require('fs').unlinkSync(req.file.path);
 
-      const response = {
+      return res.status(200).json({
         message: 'File processed successfully',
         sheets: sheetNames,
         validationResults,
         hasErrors: validationResults.some(sheet => 
           sheet.errors.length > 0 || sheet.invalidRows.length > 0
         )
-      };
-
-      return res.status(200).json(response);
+      });
 
     } catch (error) {
       if (req.file?.path) {
@@ -165,9 +200,8 @@ const importController = {
       // Format data for database
       const formattedData = sheetData.validRows.map(row => ({
         name: row.name,
-        date: row.dateObj,
-        amount: row.amount,
-        verified: row.verified
+        date: row.dateObj, // Use the stored Date object
+        amount: row.amount
       }));
 
       // Save to database
@@ -243,6 +277,64 @@ const importController = {
       console.error('Delete error:', error);
       return res.status(500).json({
         message: 'Error deleting record',
+        error: error.message
+      });
+    }
+  },
+
+  deleteRow: async (req, res) => {
+    try {
+      const { sheetName, rowNumber } = req.body;
+      console.log('Deleting row:', { sheetName, rowNumber });
+
+      if (!req.session?.validationResults) {
+        return res.status(400).json({
+          message: 'No validation data found'
+        });
+      }
+
+      const sheetIndex = req.session.validationResults.findIndex(s => s.sheetName === sheetName);
+      if (sheetIndex === -1) {
+        return res.status(404).json({
+          message: 'Sheet not found'
+        });
+      }
+
+      // Create a new copy of validation results
+      const updatedValidationResults = [...req.session.validationResults];
+      const sheet = { ...updatedValidationResults[sheetIndex] };
+
+      // Check if row exists in valid or invalid rows
+      const validRowIndex = sheet.validRows.findIndex(row => row.rowNumber === parseInt(rowNumber));
+      const invalidRowIndex = sheet.invalidRows.findIndex(row => row.rowNumber === parseInt(rowNumber));
+
+      // Remove from appropriate array
+      if (validRowIndex !== -1) {
+        sheet.validRows = sheet.validRows.filter(row => row.rowNumber !== parseInt(rowNumber));
+      } else if (invalidRowIndex !== -1) {
+        sheet.invalidRows = sheet.invalidRows.filter(row => row.rowNumber !== parseInt(rowNumber));
+      } else {
+        return res.status(404).json({
+          message: 'Row not found'
+        });
+      }
+
+      // Update the sheet in validation results
+      updatedValidationResults[sheetIndex] = sheet;
+
+      // Update session and ensure it's saved
+      req.session.validationResults = updatedValidationResults;
+      await new Promise(resolve => req.session.save(resolve));
+
+      return res.status(200).json({
+        message: 'Row deleted successfully',
+        validationResults: updatedValidationResults
+      });
+
+    } catch (error) {
+      console.error('Delete row error:', error);
+      return res.status(500).json({
+        message: 'Error deleting row',
         error: error.message
       });
     }

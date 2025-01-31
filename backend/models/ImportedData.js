@@ -13,10 +13,6 @@ const importedDataSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Amount is required'],
     min: [0, 'Amount must be positive']
-  },
-  verified: {
-    type: Boolean,
-    default: false
   }
 }, {
   timestamps: true

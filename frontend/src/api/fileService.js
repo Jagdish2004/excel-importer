@@ -12,8 +12,11 @@ export const uploadFile = async (formData) => {
       throw new Error(error.message || 'Failed to upload file');
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('Import response:', result);
+    return result;
   } catch (error) {
+    console.error('Import service error:', error);
     throw error;
   }
 };
@@ -26,6 +29,7 @@ export const getImportedData = async (page = 1, limit = 10) => {
     }
     return await response.json();
   } catch (error) {
+    console.error('Fetch data error:', error);
     throw error;
   }
 };
@@ -40,6 +44,7 @@ export const deleteRecord = async (id) => {
     }
     return await response.json();
   } catch (error) {
+    console.error('Delete error:', error);
     throw error;
   }
 };
@@ -75,6 +80,7 @@ export const previewFile = async (formData, onProgress) => {
 
     return promise;
   } catch (error) {
+    console.error('Preview error:', error);
     throw error;
   }
 };
@@ -97,6 +103,30 @@ export const importValidatedData = async (sheetName) => {
 
     return await response.json();
   } catch (error) {
+    console.error('Import error:', error);
+    throw error;
+  }
+};
+
+export const deleteRow = async (sheetName, rowNumber) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/preview/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ sheetName, rowNumber }),
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete row');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Delete row error:', error);
     throw error;
   }
 }; 
